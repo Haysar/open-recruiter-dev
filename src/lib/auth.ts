@@ -74,10 +74,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientId: process.env.AUTH_APPLE_ID!,
       clientSecret: process.env.AUTH_APPLE_SECRET!,
     }),
-    Nodemailer({
-      server: process.env.EMAIL_SERVER!,
-      from: process.env.EMAIL_FROM ?? "Open-Recruiter <noreply@open-recruiter.com>",
-    }),
+    ...(process.env.EMAIL_SERVER
+      ? [Nodemailer({
+          server: process.env.EMAIL_SERVER,
+          from: process.env.EMAIL_FROM ?? "Open-Recruiter <noreply@open-recruiter.com>",
+        })]
+      : []),
   ],
 
   // Custom pages
