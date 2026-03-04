@@ -1,0 +1,353 @@
+// Open-Recruiter — Prisma Schema
+// Prisma 7.x · MySQL datasource · Auth.js v5 (next-auth@beta) compatible
+//
+// DATABASE_URL is configured in prisma.config.ts (Prisma 7 pattern).
+// Change `provider` to "postgresql" or "sqlite" for different deployments.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  RECRUITER
+  COMPANY
+  CANDIDATE
+}
+
+enum SubscriptionStatus {
+  FREE_TRIAL
+  ACTIVE
+  EXPIRED
+}
+
+enum ReviewStatus {
+  PUBLISHED
+  FLAGGED
+  UNDER_REVIEW
+  REMOVED
+}
+
+/// Which OAuth provider was active when the review was submitted.
+/// Drives the trust badge shown on the review card.
+enum AuthBadge {
+  LINKEDIN
+  GOOGLE
+  APPLE
+  EMAIL
+}
+
+enum AiProvider {
+  MISTRAL
+  GEMINI
+  CLAUDE
+  OPENAI
+}
+
+enum SubscriptionPaymentStatus {
+  TRIAL
+  ACTIVE
+  CANCELLED
+}
+
+// ---------------------------------------------------------------------------
+// AUTH MODELS
+// Auth.js v5 (@auth/prisma-adapter) — field names must not be changed.
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  // Open-Recruiter custom fields
+  role               UserRole           @default(CANDIDATE)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  trialEndsAt        DateTime?
+  subscriptionStatus SubscriptionStatus @default(FREE_TRIAL)
+
+  // Which referral code was used when this user signed up
+  referralCodeId String?
+  referralCode   ReferralCode? @relation("UserReferralCode", fields: [referralCodeId], references: [id])
+
+  // Auth.js relations
+  accounts Account[]
+  sessions Session[]
+
+  // Open-Recruiter relations
+  recruiterProfile     RecruiterProfile?
+  companyProfile       CompanyProfile?
+  reviewsGiven         Review[]          @relation("CandidateReviews")
+  referralCodesOwned   ReferralCode[]    @relation("OwnedReferralCodes")
+  referralUsages       ReferralUsage[]   @relation("ReferralUsageUser")
+  subscriptions        Subscription[]
+  adminSettingsUpdated AdminSettings[]   @relation("AdminSettingsUpdater")
+
+  @@index([role])
+  @@index([subscriptionStatus])
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// RECRUITER PROFILE
+// ---------------------------------------------------------------------------
+
+model RecruiterProfile {
+  id          String  @id @default(cuid())
+  userId      String  @unique
+  slug        String  @unique  // URL segment: /r/firstname-lastname
+  bio         String? @db.Text
+  photo       String?          // URL to profile photo
+  linkedInUrl String?
+  isPublic    Boolean @default(true)
+
+  /// Per-recruiter invite code shown in email signatures & LinkedIn DMs.
+  /// Format: "OPENREC-ALEX-2026"
+  inviteCode String @unique
+
+  // Aggregated ratings — recomputed on each new/updated/deleted review
+  totalRatingAvg               Float @default(0)
+  ratingCandidateExperienceAvg Float @default(0)
+  ratingSpeedAvg               Float @default(0)
+  ratingTransparencyAvg        Float @default(0)
+  ratingKnowledgeAvg           Float @default(0)
+  reviewCount                  Int   @default(0)
+
+  // Current company association — nullable (independent recruiters have no company)
+  companyId   String?
+  company     CompanyProfile? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  connectedAt DateTime?       // Timestamp of the last B2B connect action
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviews Review[] @relation("RecruiterReviews")
+
+  @@index([companyId])
+  @@index([slug])
+  @@index([totalRatingAvg])
+  @@fulltext([bio])
+  @@map("recruiter_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// COMPANY PROFILE
+// ---------------------------------------------------------------------------
+
+model CompanyProfile {
+  id      String  @id @default(cuid())
+  userId  String  @unique
+  name    String
+  slug    String  @unique  // URL segment: /c/acme-corp
+  logo    String?
+  website String?
+
+  /// Secure random token that forms the company's recruiter invite URL.
+  inviteLink String @unique
+
+  // Aggregated from all currently connected recruiters
+  aggregatedRatingAvg Float @default(0)
+  reviewCount         Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recruiters RecruiterProfile[]
+
+  @@index([slug])
+  @@fulltext([name])
+  @@map("company_profiles")
+}
+
+// ---------------------------------------------------------------------------
+// REVIEW — the core entity
+// ---------------------------------------------------------------------------
+
+model Review {
+  id String @id @default(cuid())
+
+  // Candidate who wrote the review
+  candidateId String
+  candidate   User @relation("CandidateReviews", fields: [candidateId], references: [id], onDelete: Cascade)
+
+  // Recruiter being reviewed
+  recruiterId String
+  recruiter   RecruiterProfile @relation("RecruiterReviews", fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  // Rating dimensions (1–5 each, validated at app layer)
+  ratingCandidateExperience Int
+  ratingSpeed               Int
+  ratingTransparency        Int
+  ratingKnowledge           Int
+
+  /// Application-computed average of the four dimensions.
+  /// Stored (not virtual) so it can be sorted and indexed without recalculation.
+  overallRating Float
+
+  comment            String?  @db.Text // Optional for 4-5★; mandatory for 2★; text+evidence for 1★
+  evidenceUrl        String?           // Upload URL — mandatory for 1★ reviews
+  isVerifiedEvidence Boolean  @default(false)
+
+  /// OAuth provider that was active when the review was submitted.
+  /// Shown as a verification badge on the public review card.
+  authProviderBadge AuthBadge
+
+  status      ReviewStatus @default(PUBLISHED)
+  disputeNote String?      @db.Text // Set by admin when flagging/removing
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // DESIGN NOTE: No @@unique([candidateId, recruiterId]) at the DB level.
+  // The 6-month re-review cooldown is enforced in the application service layer.
+  // A DB unique constraint would permanently block re-reviews without a workaround.
+
+  @@index([recruiterId])
+  @@index([candidateId])
+  @@index([status])
+  @@index([recruiterId, status])
+  @@index([candidateId, recruiterId]) // Optimises the 6-month cooldown look-up
+  @@index([overallRating])
+  @@map("reviews")
+}
+
+// ---------------------------------------------------------------------------
+// REFERRAL CODE & USAGE
+// ---------------------------------------------------------------------------
+
+model ReferralCode {
+  id              String   @id @default(cuid())
+  code            String   @unique  // e.g. "OPENREC-ALEX-2026"
+  ownerId         String
+  owner           User     @relation("OwnedReferralCodes", fields: [ownerId], references: [id], onDelete: Cascade)
+  discountPercent Int      @default(20)
+  usageCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  usages        ReferralUsage[]
+  usedByUsers   User[]          @relation("UserReferralCode")
+  subscriptions Subscription[]  @relation("SubscriptionReferral")
+
+  @@index([ownerId])
+  @@map("referral_codes")
+}
+
+model ReferralUsage {
+  id             String       @id @default(cuid())
+  referralCodeId String
+  referralCode   ReferralCode @relation(fields: [referralCodeId], references: [id], onDelete: Cascade)
+  usedById       String
+  usedBy         User         @relation("ReferralUsageUser", fields: [usedById], references: [id], onDelete: Cascade)
+  appliedAt      DateTime     @default(now())
+
+  @@index([referralCodeId])
+  @@index([usedById])
+  @@map("referral_usages")
+}
+
+// ---------------------------------------------------------------------------
+// ADMIN SETTINGS — singleton row (enforced at app layer)
+// ---------------------------------------------------------------------------
+
+model AdminSettings {
+  id         String     @id @default(cuid())
+  aiProvider AiProvider @default(MISTRAL)
+
+  /// AES-256-GCM encrypted API key: base64(iv + authTag + ciphertext)
+  /// Encrypted via Node's native crypto module BEFORE being written to the DB.
+  /// Never store AI API keys in plain text.
+  aiApiKeyEncrypted String? @db.Text
+
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+  updater   User?    @relation("AdminSettingsUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@map("admin_settings")
+}
+
+// ---------------------------------------------------------------------------
+// SUBSCRIPTION
+// ---------------------------------------------------------------------------
+
+model Subscription {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  payrexxTransactionId String?                   // Populated after Payrexx webhook confirms payment
+  amount               Decimal                   @db.Decimal(10, 2) // Decimal for monetary accuracy
+  currency             String                    @default("CHF")
+  status               SubscriptionPaymentStatus @default(TRIAL)
+
+  trialStartedAt DateTime?
+  trialEndsAt    DateTime?
+  paidAt         DateTime?
+
+  // Referral code applied at checkout (triggers 20% discount for both parties)
+  referralCodeApplied String?
+  referralCode        ReferralCode? @relation("SubscriptionReferral", fields: [referralCodeApplied], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([payrexxTransactionId])
+  @@map("subscriptions")
+}
