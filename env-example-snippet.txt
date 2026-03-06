@@ -1,0 +1,6 @@
+# -----------------------------------------------------------------------------
+# PAYREXX — Static Payment Link (temporary, until full API integration)
+# Create a payment link in your Payrexx dashboard and paste the URL here.
+# This will be replaced by the API gateway flow later.
+# -----------------------------------------------------------------------------
+NEXT_PUBLIC_PAYREXX_PAYMENT_LINK="https://your-instance.payrexx.com/pay?tid=XXXX"
