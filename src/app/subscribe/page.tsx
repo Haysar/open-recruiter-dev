@@ -7,8 +7,6 @@ import { ShieldCheck, CheckCircle2, Star, Briefcase, Building2 } from "lucide-re
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 
 export const metadata = {
@@ -134,57 +132,41 @@ export default async function SubscribePage() {
             </div>
           </div>
 
-          {/* Checkout form */}
+          {/* Checkout card */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Complete your subscription</CardTitle>
               <CardDescription>
-                You&apos;ll be redirected to Payrexx to complete the secure payment.
+                You&apos;ll be redirected to our secure payment page powered by Payrexx.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form action={startSubscription} className="space-y-4">
-                {/* Referral code */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="referralCode">
-                    Referral code{" "}
-                    <span className="text-xs font-normal text-zinc-400">(optional)</span>
-                  </Label>
-                  <Input
-                    id="referralCode"
-                    name="referralCode"
-                    placeholder="OPENREC-XXXX-XXXX"
-                    className="font-mono uppercase"
-                  />
-                  <p className="text-xs text-zinc-400">
-                    Have a code from a recruiter? Apply it for a discount.
-                  </p>
-                </div>
-
-                <Separator />
-
+              <div className="space-y-4">
                 {/* Summary */}
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
                     <span>{isRecruiter ? "Recruiter" : "Company"} plan</span>
                     <span>CHF 9.90</span>
                   </div>
+                  <Separator />
                   <div className="flex justify-between font-semibold text-zinc-900 dark:text-zinc-50">
                     <span>Total / month</span>
                     <span>CHF 9.90</span>
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full gap-2" size="lg">
-                  Continue to payment
-                </Button>
+                <form action={startSubscription}>
+                  <Button type="submit" className="w-full gap-2" size="lg">
+                    Continue to payment
+                  </Button>
+                </form>
 
                 <p className="text-center text-xs text-zinc-400">
                   By subscribing you agree to our{" "}
                   <Link href="/terms" className="underline">Terms</Link>.
-                  Payments handled by Payrexx — we never see your card details.
+                  Payments handled by Payrexx. We never see your card details.
                 </p>
-              </form>
+              </div>
             </CardContent>
           </Card>
         </div>
