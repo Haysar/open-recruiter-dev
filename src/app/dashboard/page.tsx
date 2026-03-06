@@ -22,6 +22,11 @@ import { CopyButton } from "@/components/ui/copy-button"
 import { Separator } from "@/components/ui/separator"
 
 // ---------------------------------------------------------------------------
+// Static Payrexx Payment Link (temporary — matches subscribe/actions.ts)
+// ---------------------------------------------------------------------------
+const PAYREXX_PAYMENT_LINK = process.env.NEXT_PUBLIC_PAYREXX_PAYMENT_LINK ?? "/subscribe"
+
+// ---------------------------------------------------------------------------
 // Shared layout shell
 // ---------------------------------------------------------------------------
 
@@ -149,7 +154,7 @@ async function CandidateDashboard({ userId }: { userId: string }) {
 // RECRUITER dashboard
 // ---------------------------------------------------------------------------
 
-async function SubscriptionBanner({
+function SubscriptionBanner({
   subscriptionStatus,
   trialEndsAt,
 }: {
@@ -174,7 +179,9 @@ async function SubscriptionBanner({
         </p>
       </div>
       <Button asChild size="sm" className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white">
-        <Link href="/subscribe">Subscribe — CHF 9.90/mo</Link>
+        <a href={PAYREXX_PAYMENT_LINK} target="_blank" rel="noopener noreferrer">
+          Subscribe — CHF 9.90/mo
+        </a>
       </Button>
     </div>
   )
