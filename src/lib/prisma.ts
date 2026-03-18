@@ -1,6 +1,7 @@
 // Prisma 7 uses driver adapters instead of a binary query engine.
-// For MySQL/MariaDB we use @prisma/adapter-mariadb with the connection URL.
-import { PrismaMariaDb } from "@prisma/adapter-mariadb"
+// For PostgreSQL we use @prisma/adapter-pg with a pg.Pool connection.
+import { PgAdapter } from "@prisma/adapter-pg"
+import pg from "pg"
 import { PrismaClient } from "@/generated/prisma/client"
 
 // Prevent multiple PrismaClient instances in development due to hot-reloading.
@@ -10,7 +11,8 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createPrismaClient() {
-  const adapter = new PrismaMariaDb(process.env.DATABASE_URL!)
+  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
+  const adapter = new PgAdapter(pool)
   return new PrismaClient({ adapter })
 }
 

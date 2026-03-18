@@ -1,10 +1,27 @@
-import path from "path"
 import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
-  // Prevent Next.js from walking up to /home/jelastic and picking up
-  // Jelastic's own package-lock.json as the monorepo root.
-  outputFileTracingRoot: path.join(__dirname),
+  // Vercel deployment configuration
+  // Enable static optimization for better performance
+  output: "standalone",
+  
+  // Configure image optimization for Supabase Storage
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**.supabase.co",
+        port: "",
+        pathname: "/**",
+      },
+    ],
+  },
+  
+  // Enable experimental features for better Vercel integration
+  experimental: {
+    // Enable server components
+    serverComponentsExternalPackages: ["@supabase/supabase-js"],
+  },
 }
 
 export default nextConfig

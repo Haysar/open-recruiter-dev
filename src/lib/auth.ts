@@ -54,7 +54,7 @@ function LinkedIn(
 }
 
 // ---------------------------------------------------------------------------
-// Auth.js v5 configuration
+// Auth.js v5 configuration for Vercel + Supabase
 // ---------------------------------------------------------------------------
 export const { handlers, auth, signIn, signOut } = NextAuth({
   // The @auth/prisma-adapter and next-auth@beta bundle different @auth/core

@@ -1,4 +1,5 @@
-// pm2 process manager config — used on Infomaniak Jelastic (and any pm2-based host)
+// pm2 process manager config — used for pure hosting on Infomaniak Jelastic Cloud
+// This configuration is kept for hosting purposes as requested
 // Usage: pm2 start ecosystem.config.js
 // After first start: pm2 save  (persists across server reboots)
 module.exports = {

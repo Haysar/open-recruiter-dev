@@ -1,41 +1,36 @@
 /**
- * S3-compatible file storage (Infomaniak Object Storage or any S3-compatible provider).
+ * Supabase Storage for file uploads (profile photos, evidence uploads).
  *
  * Required env vars:
- *   STORAGE_BUCKET_URL        — e.g. https://s3.pub1.infomaniak.cloud
- *   STORAGE_BUCKET_NAME       — e.g. open-recruiter-uploads
- *   STORAGE_ACCESS_KEY_ID     — S3 access key
- *   STORAGE_SECRET_ACCESS_KEY — S3 secret key
+ *   SUPABASE_URL        — e.g. https://your-project.supabase.co
+ *   SUPABASE_SERVICE_KEY — Service role key for server-side uploads
+ *   SUPABASE_STORAGE_BUCKET — e.g. open-recruiter-uploads
  */
 
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
+import { createClient } from "@supabase/supabase-js"
 import { randomBytes } from "crypto"
 
-function getClient() {
-  const endpoint = process.env.STORAGE_BUCKET_URL
-  if (!endpoint) throw new Error("STORAGE_BUCKET_URL is not set")
+function getSupabaseClient() {
+  const url = process.env.SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_KEY
+  
+  if (!url || !serviceKey) {
+    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
+  }
 
-  return new S3Client({
-    endpoint,
-    region: "us-east-1", // required by SDK, ignored by most S3-compatible providers
-    credentials: {
-      accessKeyId: process.env.STORAGE_ACCESS_KEY_ID ?? "",
-      secretAccessKey: process.env.STORAGE_SECRET_ACCESS_KEY ?? "",
-    },
-    forcePathStyle: true, // required for non-AWS S3-compatible endpoints
-  })
+  return createClient(url, serviceKey)
 }
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"])
 const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
 
 /**
- * Uploads a File object to S3 and returns the public URL.
+ * Uploads a File object to Supabase Storage and returns the public URL.
  * Throws if storage env vars are missing, file is too large, or type is disallowed.
  */
 export async function uploadEvidence(file: File, candidateId: string): Promise<string> {
-  const bucket = process.env.STORAGE_BUCKET_NAME
-  if (!bucket) throw new Error("STORAGE_BUCKET_NAME is not set")
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET
+  if (!bucket) throw new Error("SUPABASE_STORAGE_BUCKET is not set")
 
   if (file.size > MAX_BYTES) {
     throw new Error(`Evidence file is too large (max 5 MB, got ${(file.size / 1024 / 1024).toFixed(1)} MB).`)
@@ -49,19 +44,24 @@ export async function uploadEvidence(file: File, candidateId: string): Promise<s
   const key = `evidence/${candidateId}/${randomBytes(16).toString("hex")}.${ext}`
 
   const buffer = Buffer.from(await file.arrayBuffer())
+  const supabase = getSupabaseClient()
 
-  const client = getClient()
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: buffer,
-      ContentType: file.type,
-      // Evidence files are private by default — admin reviews them
-      ACL: "private",
-    })
-  )
+  // Upload file to Supabase Storage
+  const { error } = await supabase.storage.from(bucket).upload(key, buffer, {
+    contentType: file.type,
+    upsert: false, // Don't overwrite existing files
+  })
 
-  // Return a path reference (not a public URL since ACL is private)
-  return `${process.env.STORAGE_BUCKET_URL}/${bucket}/${key}`
+  if (error) {
+    throw new Error(`Supabase upload failed: ${error.message}`)
+  }
+
+  // Get public URL for the uploaded file
+  const { data } = supabase.storage.from(bucket).getPublicUrl(key)
+  
+  if (!data?.publicUrl) {
+    throw new Error("Failed to get public URL for uploaded file")
+  }
+
+  return data.publicUrl
 }
