@@ -10,7 +10,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
 }
 
 // ---------------------------------------------------------------------------
@@ -181,7 +181,6 @@ model RecruiterProfile {
   @@index([companyId])
   @@index([slug])
   @@index([totalRatingAvg])
-  @@fulltext([bio])
   @@map("recruiter_profiles")
 }
 
@@ -211,7 +210,6 @@ model CompanyProfile {
   recruiters RecruiterProfile[]
 
   @@index([slug])
-  @@fulltext([name])
   @@map("company_profiles")
 }
 

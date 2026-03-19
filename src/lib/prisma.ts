@@ -1,6 +1,6 @@
 // Prisma 7 uses driver adapters instead of a binary query engine.
 // For PostgreSQL we use @prisma/adapter-pg with a pg.Pool connection.
-import { PgAdapter } from "@prisma/adapter-pg"
+import { PrismaPg } from "@prisma/adapter-pg"
 import pg from "pg"
 import { PrismaClient } from "@/generated/prisma/client"
 
@@ -12,7 +12,7 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient() {
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
-  const adapter = new PgAdapter(pool)
+  const adapter = new PrismaPg(pool)
   return new PrismaClient({ adapter })
 }
 
